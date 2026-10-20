@@ -16,6 +16,10 @@ use HiEvents\Enterprise\Seating\Repository\Interfaces\EventSeatMapBandProductRep
 use HiEvents\Enterprise\Seating\Repository\Interfaces\EventSeatMapRepositoryInterface;
 use HiEvents\Enterprise\Seating\Repository\Interfaces\SeatClaimRepositoryInterface;
 use HiEvents\Enterprise\Seating\Repository\Interfaces\SeatMapRepositoryInterface;
+use HiEvents\Enterprise\Sso\Repository\Eloquent\AccountSsoConnectionRepository;
+use HiEvents\Enterprise\Sso\Repository\Eloquent\AccountSsoDomainRepository;
+use HiEvents\Enterprise\Sso\Repository\Interfaces\AccountSsoConnectionRepositoryInterface;
+use HiEvents\Enterprise\Sso\Repository\Interfaces\AccountSsoDomainRepositoryInterface;
 use HiEvents\Repository\Eloquent\AccountAttributionRepository;
 use HiEvents\Repository\Eloquent\AccountConfigurationRepository;
 use HiEvents\Repository\Eloquent\AccountDeletionRequestRepository;
@@ -68,6 +72,7 @@ use HiEvents\Repository\Eloquent\OrganizerVatSettingRepository;
 use HiEvents\Repository\Eloquent\OutgoingMessageRepository;
 use HiEvents\Repository\Eloquent\PasswordResetRepository;
 use HiEvents\Repository\Eloquent\PasswordResetTokenRepository;
+use HiEvents\Repository\Eloquent\PersonalAccessTokenRepository;
 use HiEvents\Repository\Eloquent\ProductCategoryRepository;
 use HiEvents\Repository\Eloquent\ProductOccurrenceVisibilityRepository;
 use HiEvents\Repository\Eloquent\ProductPriceOccurrenceOverrideRepository;
@@ -84,6 +89,7 @@ use HiEvents\Repository\Eloquent\StripePayoutsRepository;
 use HiEvents\Repository\Eloquent\SuspiciousActivityRepository;
 use HiEvents\Repository\Eloquent\TaxAndFeeRepository;
 use HiEvents\Repository\Eloquent\TicketLookupTokenRepository;
+use HiEvents\Repository\Eloquent\UserIdentityRepository;
 use HiEvents\Repository\Eloquent\UserRepository;
 use HiEvents\Repository\Eloquent\UserTrustedDeviceRepository;
 use HiEvents\Repository\Eloquent\WaitlistEntryRepository;
@@ -142,6 +148,7 @@ use HiEvents\Repository\Interfaces\OrganizerVatSettingRepositoryInterface;
 use HiEvents\Repository\Interfaces\OutgoingMessageRepositoryInterface;
 use HiEvents\Repository\Interfaces\PasswordResetRepositoryInterface;
 use HiEvents\Repository\Interfaces\PasswordResetTokenRepositoryInterface;
+use HiEvents\Repository\Interfaces\PersonalAccessTokenRepositoryInterface;
 use HiEvents\Repository\Interfaces\ProductCategoryRepositoryInterface;
 use HiEvents\Repository\Interfaces\ProductOccurrenceVisibilityRepositoryInterface;
 use HiEvents\Repository\Interfaces\ProductPriceOccurrenceOverrideRepositoryInterface;
@@ -158,6 +165,7 @@ use HiEvents\Repository\Interfaces\StripePayoutsRepositoryInterface;
 use HiEvents\Repository\Interfaces\SuspiciousActivityRepositoryInterface;
 use HiEvents\Repository\Interfaces\TaxAndFeeRepositoryInterface;
 use HiEvents\Repository\Interfaces\TicketLookupTokenRepositoryInterface;
+use HiEvents\Repository\Interfaces\UserIdentityRepositoryInterface;
 use HiEvents\Repository\Interfaces\UserRepositoryInterface;
 use HiEvents\Repository\Interfaces\UserTrustedDeviceRepositoryInterface;
 use HiEvents\Repository\Interfaces\WaitlistEntryRepositoryInterface;
@@ -198,6 +206,7 @@ class RepositoryServiceProvider extends ServiceProvider
         PromoCodeRepositoryInterface::class => PromoCodeRepository::class,
         MessageRepositoryInterface::class => MessageRepository::class,
         PasswordResetTokenRepositoryInterface::class => PasswordResetTokenRepository::class,
+        PersonalAccessTokenRepositoryInterface::class => PersonalAccessTokenRepository::class,
         PasswordResetRepositoryInterface::class => PasswordResetRepository::class,
         TaxAndFeeRepositoryInterface::class => TaxAndFeeRepository::class,
         ImageRepositoryInterface::class => ImageRepository::class,
@@ -241,6 +250,9 @@ class RepositoryServiceProvider extends ServiceProvider
         AnnouncementUserRepositoryInterface::class => AnnouncementUserRepository::class,
         WaitlistEntryRepositoryInterface::class => WaitlistEntryRepository::class,
         WidgetRepositoryInterface::class => WidgetRepository::class,
+        UserIdentityRepositoryInterface::class => UserIdentityRepository::class,
+        AccountSsoConnectionRepositoryInterface::class => AccountSsoConnectionRepository::class,
+        AccountSsoDomainRepositoryInterface::class => AccountSsoDomainRepository::class,
         EventOccurrenceRepositoryInterface::class => EventOccurrenceRepository::class,
         EventOccurrenceStatisticRepositoryInterface::class => EventOccurrenceStatisticRepository::class,
         EventOccurrenceDailyStatisticRepositoryInterface::class => EventOccurrenceDailyStatisticRepository::class,

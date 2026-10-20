@@ -12,9 +12,19 @@ use HiEvents\Http\Actions\Accounts\UpdateAccountAction;
 use HiEvents\Http\Actions\Affiliates\ExportAffiliatesAction;
 use HiEvents\Http\Actions\Announcements\DismissAnnouncementAction;
 use HiEvents\Http\Actions\Announcements\GetActiveAnnouncementsAction;
+use HiEvents\Http\Actions\ApiKeys\CreateApiKeyAction;
+use HiEvents\Http\Actions\ApiKeys\DeleteApiKeyAction;
+use HiEvents\Http\Actions\ApiKeys\GetApiKeysAction;
+use HiEvents\Http\Actions\ApiReference\GetApiReferenceAction;
 use HiEvents\Http\Actions\Attendees\ExportAttendeesAction;
+use HiEvents\Http\Actions\Auth\JoinInvitationAction;
 use HiEvents\Http\Actions\Auth\LogoutAction;
 use HiEvents\Http\Actions\Auth\RefreshTokenAction;
+use HiEvents\Http\Actions\Auth\Sso\DeleteSsoIdentityAction;
+use HiEvents\Http\Actions\Auth\Sso\ExchangeAuthenticatedSsoCodeAction;
+use HiEvents\Http\Actions\Auth\Sso\GetSsoIdentitiesAction;
+use HiEvents\Http\Actions\Auth\Sso\StartSsoLinkAction;
+use HiEvents\Http\Actions\Auth\Sso\StartSsoReauthAction;
 use HiEvents\Http\Actions\EmailTemplates\GetAvailableTokensAction;
 use HiEvents\Http\Actions\EmailTemplates\GetDefaultEmailTemplateAction;
 use HiEvents\Http\Actions\EmailTemplates\PreviewEventEmailTemplateAction;
@@ -98,6 +108,16 @@ class AccessCoverageTest extends TestCase
         GetAvailableTokensAction::class,
         GetGeoStatusAction::class,
         GetAccountAction::class,
+        GetSsoIdentitiesAction::class,
+        StartSsoLinkAction::class,
+        StartSsoReauthAction::class,
+        ExchangeAuthenticatedSsoCodeAction::class,
+        DeleteSsoIdentityAction::class,
+        JoinInvitationAction::class,
+        GetApiKeysAction::class,
+        CreateApiKeyAction::class,
+        DeleteApiKeyAction::class,
+        GetApiReferenceAction::class,
     ];
 
     private const SCOPE_FILTERED_OR_CHECKED_INLINE = [
@@ -123,6 +143,14 @@ class AccessCoverageTest extends TestCase
 
     private const ALLOWED_FOR_READ_ONLY_USERS = [
         BeginTwoFactorSetupAction::class,
+        CreateApiKeyAction::class,
+        DeleteApiKeyAction::class,
+        DeleteSsoIdentityAction::class,
+        ExchangeAuthenticatedSsoCodeAction::class,
+        GetSsoIdentitiesAction::class,
+        JoinInvitationAction::class,
+        StartSsoLinkAction::class,
+        StartSsoReauthAction::class,
         CancelEmailChangeAction::class,
         ConfirmEmailAddressAction::class,
         ConfirmEmailChangeAction::class,
@@ -218,7 +246,7 @@ class AccessCoverageTest extends TestCase
     private function loggedInActions(): array
     {
         return collect(app('router')->getRoutes()->getRoutes())
-            ->filter(fn (Route $route) => in_array('auth:api', $route->gatherMiddleware(), true))
+            ->filter(fn (Route $route) => array_intersect(['auth:api', 'auth:api,sanctum'], $route->gatherMiddleware()) !== [])
             ->reject(fn (Route $route) => str_starts_with($route->uri(), 'admin/'))
             ->map(fn (Route $route) => $route->getControllerClass())
             ->filter()

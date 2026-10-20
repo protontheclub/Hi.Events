@@ -6,6 +6,7 @@ use HiEvents\DomainObjects\AccountDomainObject;
 use HiEvents\DomainObjects\Enums\Role;
 use HiEvents\DomainObjects\Status\UserStatus;
 use HiEvents\DomainObjects\UserDomainObject;
+use HiEvents\Enterprise\Sso\Services\Domain\SsoEnforcementService;
 use HiEvents\Exceptions\ResourceConflictException;
 use HiEvents\Exceptions\UnauthorizedException;
 use HiEvents\Repository\Interfaces\AccountRepositoryInterface;
@@ -31,6 +32,7 @@ readonly class CreateUserHandler
         private AccountUserAssociationService $accountUserAssociationService,
         private AccountUserAccessUpdateService $accessUpdateService,
         private AdminAccessNotificationService $adminAccessNotificationService,
+        private SsoEnforcementService $ssoEnforcementService,
         private DatabaseManager $databaseManager,
     ) {}
 
@@ -69,6 +71,10 @@ readonly class CreateUserHandler
                 access: $userData->access ?? new AccountUserAccessData,
             );
 
+            if ($this->ssoEnforcementService->shouldEnforceNewMember($authenticatedAccount->getId(), $invitedUser->getEmail(), isAccountOwner: false)) {
+                $this->accountUserRepository->updateWhere(['sso_enforced' => true], ['id' => $accountUser->getId()]);
+            }
+
             $invitedUser->setCurrentAccountUser($this->accountUserRepository->findById($accountUser->getId()));
 
             $this->sendUserInvitationService->sendInvitation($invitedUser, $authenticatedAccount->getId());
@@ -93,7 +99,7 @@ readonly class CreateUserHandler
                 'first_name' => $userData->first_name,
                 'last_name' => $userData->last_name,
                 'email' => strtolower($userData->email),
-                'password' => 'invited', // initially, a user is in an invited state, so they don't have a password
+                'password' => null,
                 'timezone' => $authenticatedAccount->getTimezone(),
             ]);
     }

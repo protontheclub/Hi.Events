@@ -150,6 +150,88 @@ class AccountDeletionExecutionTest extends TestCase
         ]);
     }
 
+    public function test_both_deletion_paths_remove_the_sso_connection_domains_and_connection_identities(): void
+    {
+        foreach ([AccountAnonymizationService::class => 'anonymizeAccount', AccountHardDeletionService::class => 'deleteAccount'] as $service => $method) {
+            $connectionId = $this->seedSsoConnection();
+
+            $this->app->make($service)->{$method}($this->account->id);
+
+            $this->assertDatabaseMissing('account_sso_connections', ['id' => $connectionId]);
+            $this->assertDatabaseMissing('account_sso_domains', ['account_id' => $this->account->id]);
+            $this->assertDatabaseMissing('user_identities', ['subject' => 'connection-subject']);
+            $this->assertDatabaseHas('user_identities', ['subject' => 'social-subject']);
+
+            DB::table('user_identities')->delete();
+        }
+    }
+
+    public function test_both_deletion_paths_remove_the_accounts_api_keys_and_keep_other_accounts_keys(): void
+    {
+        foreach ([AccountAnonymizationService::class => 'anonymizeAccount', AccountHardDeletionService::class => 'deleteAccount'] as $service => $method) {
+            $doomedKeyId = $this->seedApiKey($this->sharedUser, $this->account->id);
+            $survivingKeyId = $this->seedApiKey($this->sharedUser, $this->otherAccount->id);
+
+            $this->app->make($service)->{$method}($this->account->id);
+
+            $this->assertDatabaseMissing('personal_access_tokens', ['id' => $doomedKeyId]);
+            $this->assertDatabaseHas('personal_access_tokens', ['id' => $survivingKeyId]);
+
+            DB::table('personal_access_tokens')->delete();
+        }
+    }
+
+    private function seedApiKey(User $user, int $accountId): int
+    {
+        return DB::table('personal_access_tokens')->insertGetId([
+            'tokenable_type' => User::class,
+            'tokenable_id' => $user->id,
+            'account_id' => $accountId,
+            'name' => 'Integration',
+            'token' => hash('sha256', uniqid('', true)),
+            'token_hint' => 'abcd',
+            'abilities' => '["read"]',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function seedSsoConnection(): int
+    {
+        $connectionId = DB::table('account_sso_connections')->insertGetId([
+            'account_id' => $this->account->id,
+            'type' => 'OKTA',
+            'issuer' => 'https://acme.okta.test',
+            'client_id' => 'client',
+            'client_secret' => encrypt('secret', false),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('account_sso_domains')->insert([
+            'account_id' => $this->account->id,
+            'domain' => 'doomed.test',
+            'verification_token' => 'token',
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach (['connection-subject' => $connectionId, 'social-subject' => null] as $subject => $identityConnectionId) {
+            DB::table('user_identities')->insert([
+                'user_id' => $this->sharedUser->id,
+                'account_sso_connection_id' => $identityConnectionId,
+                'provider_key' => $identityConnectionId === null ? 'google' : 'connection-'.$connectionId,
+                'issuer' => $identityConnectionId === null ? 'https://accounts.google.com' : 'https://acme.okta.test',
+                'subject' => $subject,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $connectionId;
+    }
+
     private function seedSpamCheck(int $eventId, int $reviewedByUserId): int
     {
         return DB::table('event_spam_checks')->insertGetId([

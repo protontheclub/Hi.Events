@@ -51,6 +51,20 @@ use HiEvents\Enterprise\Seating\Http\Actions\UpdateEventSeatMapBandProductsActio
 use HiEvents\Enterprise\Seating\Http\Actions\UpdateEventSeatMapLayoutAction;
 use HiEvents\Enterprise\Seating\Http\Actions\UpdateEventSeatMapRulesAction;
 use HiEvents\Enterprise\Seating\Http\Actions\UpdateSeatMapAction;
+use HiEvents\Enterprise\Sso\Http\Actions\AddAccountSsoDomainAction;
+use HiEvents\Enterprise\Sso\Http\Actions\CheckAccountSsoIdentityProviderAction;
+use HiEvents\Enterprise\Sso\Http\Actions\CreateAccountSsoConnectionAction;
+use HiEvents\Enterprise\Sso\Http\Actions\DeleteAccountSsoConnectionAction;
+use HiEvents\Enterprise\Sso\Http\Actions\DeleteAccountSsoDomainAction;
+use HiEvents\Enterprise\Sso\Http\Actions\DiscoverSsoConnectionAction;
+use HiEvents\Enterprise\Sso\Http\Actions\GetAccountSsoAction;
+use HiEvents\Enterprise\Sso\Http\Actions\GetSsoEnforcementPreviewAction;
+use HiEvents\Enterprise\Sso\Http\Actions\StartAccountSsoTestAction;
+use HiEvents\Enterprise\Sso\Http\Actions\UpdateAccountSsoConnectionAction;
+use HiEvents\Enterprise\Sso\Http\Actions\UpdateAccountSsoConnectionStatusAction;
+use HiEvents\Enterprise\Sso\Http\Actions\UpdateSsoEnforcementAction;
+use HiEvents\Enterprise\Sso\Http\Actions\UpdateSsoMemberEnforcementAction;
+use HiEvents\Enterprise\Sso\Http\Actions\VerifyAccountSsoDomainAction;
 use HiEvents\Http\Actions\Accounts\CreateAccountAction;
 use HiEvents\Http\Actions\Accounts\DeletionRequest\CancelAccountDeletionAction;
 use HiEvents\Http\Actions\Accounts\DeletionRequest\GetAccountDeletionStatusAction;
@@ -117,6 +131,10 @@ use HiEvents\Http\Actions\Affiliates\GetAffiliatesAction;
 use HiEvents\Http\Actions\Affiliates\UpdateAffiliateAction;
 use HiEvents\Http\Actions\Announcements\DismissAnnouncementAction;
 use HiEvents\Http\Actions\Announcements\GetActiveAnnouncementsAction;
+use HiEvents\Http\Actions\ApiKeys\CreateApiKeyAction;
+use HiEvents\Http\Actions\ApiKeys\DeleteApiKeyAction;
+use HiEvents\Http\Actions\ApiKeys\GetApiKeysAction;
+use HiEvents\Http\Actions\ApiReference\GetApiReferenceAction;
 use HiEvents\Http\Actions\Attendees\CheckInAttendeeAction;
 use HiEvents\Http\Actions\Attendees\CreateAttendeeAction;
 use HiEvents\Http\Actions\Attendees\EditAttendeeAction;
@@ -129,10 +147,22 @@ use HiEvents\Http\Actions\Attendees\ResendAttendeeTicketAction;
 use HiEvents\Http\Actions\Auth\AcceptInvitationAction;
 use HiEvents\Http\Actions\Auth\ForgotPasswordAction;
 use HiEvents\Http\Actions\Auth\GetUserInvitationAction;
+use HiEvents\Http\Actions\Auth\JoinInvitationAction;
 use HiEvents\Http\Actions\Auth\LoginAction;
 use HiEvents\Http\Actions\Auth\LogoutAction;
 use HiEvents\Http\Actions\Auth\RefreshTokenAction;
 use HiEvents\Http\Actions\Auth\ResetPasswordAction;
+use HiEvents\Http\Actions\Auth\Sso\CompleteSsoLoginAction;
+use HiEvents\Http\Actions\Auth\Sso\CompleteSsoSignupAction;
+use HiEvents\Http\Actions\Auth\Sso\DeleteSsoIdentityAction;
+use HiEvents\Http\Actions\Auth\Sso\ExchangeAuthenticatedSsoCodeAction;
+use HiEvents\Http\Actions\Auth\Sso\ExchangeSsoCodeAction;
+use HiEvents\Http\Actions\Auth\Sso\GetSsoIdentitiesAction;
+use HiEvents\Http\Actions\Auth\Sso\GetSsoProvidersAction;
+use HiEvents\Http\Actions\Auth\Sso\SendSsoSignupCodeAction;
+use HiEvents\Http\Actions\Auth\Sso\StartSsoAction;
+use HiEvents\Http\Actions\Auth\Sso\StartSsoLinkAction;
+use HiEvents\Http\Actions\Auth\Sso\StartSsoReauthAction;
 use HiEvents\Http\Actions\Auth\TwoFactorLoginAction;
 use HiEvents\Http\Actions\Auth\ValidateResetPasswordTokenAction;
 use HiEvents\Http\Actions\CapacityAssignments\CreateCapacityAssignmentAction;
@@ -392,20 +422,26 @@ $router->prefix('/auth')->group(
         // Reset Passwords
         $router->get('/reset-password/{reset_token}', ValidateResetPasswordTokenAction::class)->name('auth.validate-reset-password-token');
         $router->post('/reset-password/{reset_token}', ResetPasswordAction::class)->name('auth.reset-password');
+
+        // Single sign-on
+        $router->get('/sso/providers', GetSsoProvidersAction::class)->name('auth.sso.providers');
+        $router->post('/sso/exchange', ExchangeSsoCodeAction::class)->name('auth.sso.exchange')->middleware('throttle:auth-sso-exchange');
+        $router->post('/sso/complete', CompleteSsoLoginAction::class)->name('auth.sso.complete')->middleware('throttle:auth-sso-exchange');
+        $router->post('/sso/signup/code', SendSsoSignupCodeAction::class)->name('auth.sso.signup.code')->middleware('throttle:auth-sso-signup-code');
+        $router->post('/sso/signup', CompleteSsoSignupAction::class)->name('auth.sso.signup')->middleware('throttle:auth-sso-signup');
+        $router->post('/sso/discover', DiscoverSsoConnectionAction::class)->name('auth.sso.discover')->middleware('throttle:auth-sso-discover');
+        $router->post('/sso/{provider}/start', StartSsoAction::class)->name('auth.sso.start')->middleware('throttle:auth-sso-start');
     }
 );
 
 /**
- * Logged In Routes
+ * Signed-in routes that API keys can't use
  */
 $router->middleware(['auth:api'])->group(
     function (Router $router): void {
-        // Auth
         $router->get('/auth/logout', LogoutAction::class);
         $router->post('/auth/refresh', RefreshTokenAction::class);
-
-        // Users
-        $router->get('/users/me', GetMeAction::class);
+        $router->post('/auth/invitation/{invite_token}/join', JoinInvitationAction::class);
         $router->put('/users/me', UpdateMeAction::class)->middleware('throttle:user-update-me');
         $router->get('/users/me/two-factor', GetTwoFactorStatusAction::class);
         $router->post('/users/me/two-factor/setup', BeginTwoFactorSetupAction::class)->middleware('throttle:10,1,two-factor-setup');
@@ -414,10 +450,15 @@ $router->middleware(['auth:api'])->group(
         $router->post('/users/me/two-factor/disable', DisableTwoFactorAction::class)->middleware('throttle:10,1,two-factor-disable');
         $router->delete('/users/me/two-factor/trusted-devices', RevokeTrustedDevicesAction::class);
         $router->delete('/users/me/two-factor/trusted-devices/{device_id}', RevokeTrustedDeviceAction::class)->whereNumber('device_id');
+        $router->get('/users/me/sso-identities', GetSsoIdentitiesAction::class);
+        $router->post('/users/me/sso-identities/exchange', ExchangeAuthenticatedSsoCodeAction::class)->middleware('throttle:auth-sso-exchange');
+        $router->post('/users/me/sso-identities/{provider}/start', StartSsoLinkAction::class)->middleware('throttle:auth-sso-start');
+        $router->post('/users/me/sso-identities/{provider}/reauth', StartSsoReauthAction::class)->middleware('throttle:auth-sso-start');
+        $router->delete('/users/me/sso-identities/{identity_id}', DeleteSsoIdentityAction::class)->whereNumber('identity_id')->middleware('throttle:auth-sso-start');
         $router->post('/users', CreateUserAction::class)->middleware('throttle:user-invite');
         $router->get('/users', GetUsersAction::class);
-        $router->get('/users/{user_id}', GetUserAction::class);
-        $router->put('/users/{user_id}', UpdateUserAction::class);
+        $router->get('/users/{user_id}', GetUserAction::class)->whereNumber('user_id');
+        $router->put('/users/{user_id}', UpdateUserAction::class)->whereNumber('user_id');
         $router->post('/users/{user_id}/email-change/{changeToken}', ConfirmEmailChangeAction::class);
         $router->post('/users/{user_id}/invitation', ResendInvitationAction::class)->middleware('throttle:user-invite');
         $router->delete('/users/{user_id}/invitation', DeleteInvitationAction::class);
@@ -426,18 +467,56 @@ $router->middleware(['auth:api'])->group(
         $router->post('/users/{user_id}/resend-email-confirmation', ResendEmailConfirmationAction::class)->middleware('throttle:user-email-confirmation');
         $router->post('/users/{user_id}/confirm-email-with-code', ConfirmEmailWithCodeAction::class)->middleware('throttle:user-email-confirmation-code');
         $router->post('/users/{user_id}/two-factor/reset', ResetAccountUserTwoFactorAction::class)->whereNumber('user_id');
-
-        // Announcements
         $router->get('/announcements/active', GetActiveAnnouncementsAction::class);
         $router->post('/announcements/{announcement_id}/dismiss', DismissAnnouncementAction::class);
-
-        // Accounts
         $router->post('/accounts/deletion-request', RequestAccountDeletionAction::class);
         $router->delete('/accounts/deletion-request', CancelAccountDeletionAction::class);
         $router->get('/accounts/deletion-request', GetAccountDeletionStatusAction::class);
         $router->put('/accounts/{account_id}/two-factor-requirement', UpdateAccountTwoFactorRequirementAction::class)->whereNumber('account_id');
-        $router->get('/accounts/{account_id?}', GetAccountAction::class);
-        $router->put('/accounts/{account_id?}', UpdateAccountAction::class);
+        $router->get('/accounts/{account_id}/sso', GetAccountSsoAction::class)->whereNumber('account_id');
+        $router->post('/accounts/{account_id}/sso/connection', CreateAccountSsoConnectionAction::class)->whereNumber('account_id')->middleware(['throttle:20,1,account-sso-connection', 'ee.licensed:enterprise_sso']);
+        $router->put('/accounts/{account_id}/sso/connection', UpdateAccountSsoConnectionAction::class)->whereNumber('account_id')->middleware(['throttle:20,1,account-sso-connection', 'ee.licensed:enterprise_sso']);
+        $router->post('/accounts/{account_id}/sso/connection/check', CheckAccountSsoIdentityProviderAction::class)->whereNumber('account_id')->middleware(['throttle:30,1,account-sso-connection-check', 'ee.licensed:enterprise_sso']);
+        $router->put('/accounts/{account_id}/sso/connection/status', UpdateAccountSsoConnectionStatusAction::class)->whereNumber('account_id');
+        $router->post('/accounts/{account_id}/sso/connection/test', StartAccountSsoTestAction::class)->whereNumber('account_id')->middleware(['throttle:auth-sso-start', 'ee.licensed:enterprise_sso']);
+        $router->delete('/accounts/{account_id}/sso/connection', DeleteAccountSsoConnectionAction::class)->whereNumber('account_id');
+        $router->post('/accounts/{account_id}/sso/domains', AddAccountSsoDomainAction::class)->whereNumber('account_id')->middleware(['throttle:30,1,account-sso-domain', 'ee.licensed:enterprise_sso']);
+        $router->post('/accounts/{account_id}/sso/domains/{domain_id}/verify', VerifyAccountSsoDomainAction::class)->whereNumber(['account_id', 'domain_id'])->middleware(['throttle:20,1,account-sso-domain-verify', 'ee.licensed:enterprise_sso']);
+        $router->delete('/accounts/{account_id}/sso/domains/{domain_id}', DeleteAccountSsoDomainAction::class)->whereNumber(['account_id', 'domain_id']);
+        $router->get('/accounts/{account_id}/sso/enforcement', GetSsoEnforcementPreviewAction::class)->whereNumber('account_id');
+        $router->put('/accounts/{account_id}/sso/enforcement', UpdateSsoEnforcementAction::class)->whereNumber('account_id');
+        $router->put('/accounts/{account_id}/sso/members/{account_user_id}', UpdateSsoMemberEnforcementAction::class)->whereNumber(['account_id', 'account_user_id']);
+        $router->put('/accounts/{account_id?}', UpdateAccountAction::class)->whereNumber('account_id');
+        $router->get('/organizers/{organizer_id}/team', GetOrganizerTeamAction::class);
+        $router->get('/organizers/{organizerId}/stripe/connect_accounts', GetStripeConnectAccountsAction::class);
+        $router->post('/organizers/{organizerId}/stripe/connect', CreateStripeConnectAccountAction::class);
+        $router->post('/organizers/{organizerId}/stripe/copy_from/{sourceOrganizerId}', CopyStripeConnectAccountAction::class);
+        $router->delete('/organizers/{organizerId}/stripe/connect_accounts/{stripeAccountId}', DisconnectStripeConnectAccountAction::class)
+            ->where('stripeAccountId', '[A-Za-z0-9_]+');
+        $router->get('/organizers/{organizerId}/stripe/terminal/readers', GetStripeTerminalReadersAction::class);
+        $router->post('/organizers/{organizerId}/stripe/terminal/readers', RegisterStripeTerminalReaderAction::class)
+            ->middleware('ee.licensed:box_office');
+        $router->delete('/organizers/{organizerId}/stripe/terminal/readers/{readerId}', DeleteStripeTerminalReaderAction::class);
+        $router->post('/organizers/{organizerId}/vat-settings', UpsertOrganizerVatSettingAction::class);
+        $router->get('/events/{event_id}/team', GetEventTeamAction::class);
+
+        $router->get('/api-reference', GetApiReferenceAction::class);
+        $router->get('/api-keys', GetApiKeysAction::class);
+        $router->post('/api-keys', CreateApiKeyAction::class)->middleware('throttle:10,1,api-key-create');
+        $router->delete('/api-keys/{api_key_id}', DeleteApiKeyAction::class)->whereNumber('api_key_id');
+    }
+);
+
+/**
+ * Signed-in routes, also available to API keys
+ */
+$router->middleware(['auth:api,sanctum'])->group(
+    function (Router $router): void {
+        // Users
+        $router->get('/users/me', GetMeAction::class);
+
+        // Accounts
+        $router->get('/accounts/{account_id?}', GetAccountAction::class)->whereNumber('account_id');
 
         // Organizers
         $router->post('/organizers', CreateOrganizerAction::class);
@@ -450,7 +529,6 @@ $router->middleware(['auth:api'])->group(
         $router->get('/organizers/{organizer_id}', GetOrganizerAction::class);
         $router->get('/organizers/{organizer_id}/events', GetOrganizerEventsAction::class);
         $router->get('/organizers/{organizer_id}/stats', GetOrganizerStatsAction::class);
-        $router->get('/organizers/{organizer_id}/team', GetOrganizerTeamAction::class);
         $router->get('/organizers/{organizer_id}/orders', GetOrganizerOrdersAction::class);
         $router->get('/organizers/{organizer_id}/settings', GetOrganizerSettingsAction::class);
         $router->patch('/organizers/{organizer_id}/settings', PartialUpdateOrganizerSettingsAction::class);
@@ -514,20 +592,8 @@ $router->middleware(['auth:api'])->group(
         $router->post('/events/{event_id}/seat-blocks/release', ReleaseSeatBlocksAction::class);
         $router->put('/events/{event_id}/attendees/{attendee_id}/seat', MoveAttendeeSeatAction::class);
 
-        // Stripe Connect - Organizer level
-        $router->get('/organizers/{organizerId}/stripe/connect_accounts', GetStripeConnectAccountsAction::class);
-        $router->post('/organizers/{organizerId}/stripe/connect', CreateStripeConnectAccountAction::class);
-        $router->post('/organizers/{organizerId}/stripe/copy_from/{sourceOrganizerId}', CopyStripeConnectAccountAction::class);
-        $router->delete('/organizers/{organizerId}/stripe/connect_accounts/{stripeAccountId}', DisconnectStripeConnectAccountAction::class)
-            ->where('stripeAccountId', '[A-Za-z0-9_]+');
-        $router->get('/organizers/{organizerId}/stripe/terminal/readers', GetStripeTerminalReadersAction::class);
-        $router->post('/organizers/{organizerId}/stripe/terminal/readers', RegisterStripeTerminalReaderAction::class)
-            ->middleware('ee.licensed:box_office');
-        $router->delete('/organizers/{organizerId}/stripe/terminal/readers/{readerId}', DeleteStripeTerminalReaderAction::class);
-
         // VAT Settings - Organizer level
         $router->get('/organizers/{organizerId}/vat-settings', GetOrganizerVatSettingAction::class);
-        $router->post('/organizers/{organizerId}/vat-settings', UpsertOrganizerVatSettingAction::class);
 
         // Email Templates - Organizer level
         $router->get('/organizers/{organizerId}/email-templates', GetOrganizerEmailTemplatesAction::class);
@@ -575,7 +641,6 @@ $router->middleware(['auth:api'])->group(
 
         // Stats
         $router->get('/events/{event_id}/stats', GetEventStatsAction::class);
-        $router->get('/events/{event_id}/team', GetEventTeamAction::class);
         $router->get('/events/{event_id}/counts', GetEventCountsAction::class);
 
         // Email Templates - Event level

@@ -3,6 +3,8 @@
 namespace HiEvents\Exceptions;
 
 use HiEvents\Enterprise\Licensing\Exceptions\FeatureNotLicensedException;
+use HiEvents\Enterprise\Sso\Exceptions\SsoRequiredException;
+use HiEvents\Services\Domain\Auth\AuthUserService;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +27,8 @@ class Handler extends ExceptionHandler
         ResourceNotFoundException::class,
         ResourceConflictException::class,
         SymfonyResourceNotFoundException::class,
+        SsoException::class,
+        SsoRequiredException::class,
     ];
 
     /**
@@ -51,8 +55,9 @@ class Handler extends ExceptionHandler
                 $user = auth()->user();
                 if ($user) {
                     $ip = request()->ip();
-                    $isImpersonating = (bool) auth()->payload()->get('is_impersonating', false);
-                    $impersonatorId = $isImpersonating ? auth()->payload()->get('impersonator_id') : null;
+                    $authUserService = app(AuthUserService::class);
+                    $isImpersonating = $authUserService->isImpersonating();
+                    $impersonatorId = $authUserService->getImpersonatorId();
 
                     Sentry::configureScope(function (Scope $scope) use ($user, $ip, $isImpersonating, $impersonatorId): void {
                         $scope->setUser([
