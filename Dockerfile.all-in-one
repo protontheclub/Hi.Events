@@ -1,4 +1,3 @@
-ENV NODE_OPTIONS="--max-old-space-size=2048"
 FROM node:22-alpine AS node-frontend
 
 WORKDIR /app/frontend
@@ -12,6 +11,8 @@ COPY ./frontend/package.json ./frontend/yarn.lock ./
 
 COPY ./frontend .
 COPY ./VERSION /app/VERSION
+
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 RUN yarn install --network-timeout 600000 --frozen-lockfile && yarn build
 
