@@ -12,7 +12,7 @@ COPY ./frontend/package.json ./frontend/yarn.lock ./
 COPY ./frontend .
 COPY ./VERSION /app/VERSION
 
-ENV NODE_OPTIONS="--max-old-space-size=2048"
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 RUN yarn install --network-timeout 600000 --frozen-lockfile && yarn build
 
