@@ -8,6 +8,7 @@ import {Event, EventOccurrence, HomepageSection, HomepageThemeSettings} from '..
 import {WidgetSettings, WidgetType} from "../../../utilites/widgetConfig.ts";
 import {resolveWidgetColors, WidgetColors} from "../../../utilites/widgetTheme.ts";
 import {showError, showSuccess} from "../../../utilites/notifications.tsx";
+import {firstApiError} from "../../../utilites/apiErrors.ts";
 import {confirmationDialogAsync} from "../../../utilites/confirmationDialog.tsx";
 import {useAccess} from "../../../hooks/useAccess.ts";
 import {useUnsavedChangesGuard} from "../../../hooks/useUnsavedChangesGuard.ts";
@@ -17,7 +18,7 @@ import {useUpsertWidget} from "../../../mutations/useUpsertWidget.ts";
 import {useDeleteWidget} from "../../../mutations/useDeleteWidget.ts";
 import {settingsForType, widgetAttributes, widgetScriptUrl, WidgetTarget} from "./embedCode.ts";
 import {InstallPlatform, installCode} from "./installGuides.ts";
-import {COLOR_KEYS, COLOR_REGEX, defaultSettings, savedSettings, settingsForNewType} from "./editorSettings.ts";
+import {COLOR_KEYS, COLOR_REGEX, defaultSettings, savedSettings, SelectableIds, settingsForNewType} from "./editorSettings.ts";
 import {WidgetPreview} from "./WidgetPreview.tsx";
 import {TypePicker} from "./TypePicker.tsx";
 import {WidgetStats} from "./WidgetStats.tsx";
@@ -25,6 +26,7 @@ import {NameModal} from "./NameModal.tsx";
 import {CustomiseGroups} from "./CustomiseGroups.tsx";
 import {LayoutPicker, LineupNotice} from "./ContentFields.tsx";
 import {InstallPanel} from "./InstallPanel.tsx";
+import {useLineupSectionAvailability} from "./sectionAvailability.ts";
 
 const UNSAVED = 'unsaved';
 
@@ -71,6 +73,12 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
     const themeColors = useMemo(() => resolveWidgetColors({theme: 'event'}, theme ?? {}), [theme]);
     const invalidColor = COLOR_KEYS.some(key => cleanSettings[key] && !COLOR_REGEX.test(String(cleanSettings[key])));
     const locked = isReadOnly && !!activeWidget;
+    const lineupAvailability = useLineupSectionAvailability(event?.id, homepageSections);
+    const selectable: SelectableIds = useMemo(() => ({
+        products: event?.product_categories?.flatMap(category => (category.products ?? []).map(product => Number(product.id))),
+        categories: event?.product_categories?.map(category => Number(category.id)),
+        occurrences: occurrences?.map(occurrence => Number(occurrence.id)),
+    }), [event, occurrences]);
 
     useUnsavedChangesGuard(isDirty, t`Leave without saving? Your widget changes will be lost.`);
 
@@ -94,7 +102,7 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
         if (widget) {
             setActiveId(widget.id);
             setType(widget.type);
-            setSettings(savedSettings(widget));
+            setSettings(savedSettings(widget, selectable));
         }
     };
 
@@ -107,10 +115,10 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
                 onSuccess: ({data}) => {
                     setActiveId(data.id);
                     setNameModal(null);
-                    setCodeOutdated(changesEmbedCode);
+                    setCodeOutdated(!widgetId || changesEmbedCode);
                     showSuccess(widgetId ? t`Widget saved` : t`Widget created`);
                 },
-                onError: () => showError(t`Unable to save the widget. Please check your settings and try again.`),
+                onError: (error) => showError(firstApiError(error, t`Unable to save the widget. Please check your settings and try again.`)),
             },
         );
     };
@@ -126,7 +134,7 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
             },
             {
                 onSuccess: () => setNameModal(null),
-                onError: () => showError(t`Unable to rename the widget`),
+                onError: (error) => showError(firstApiError(error, t`Unable to rename the widget`)),
             },
         );
     };
@@ -264,7 +272,7 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
                 : <TypePicker value={type} onChange={changeType} disabled={locked}/>}
             <LineupNotice
                 type={type}
-                homepageSections={homepageSections}
+                availability={lineupAvailability}
                 homepageDesignerPath={homepageDesignerPath}
                 lineupPath={lineupPath}
             />
@@ -280,6 +288,7 @@ export const WidgetEditor = ({target, theme, event, occurrences, homepageSection
                     theme={theme}
                     themeColors={themeColors}
                     homepageDesignerPath={homepageDesignerPath}
+                    lineupAvailability={lineupAvailability}
                     locked={locked}
                 />
             </DesignerSection>

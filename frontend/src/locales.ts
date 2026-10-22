@@ -1,5 +1,7 @@
 import {i18n} from "@lingui/core";
+import {t} from "@lingui/macro";
 import {resolveClientEmbedLocale} from "./utilites/embedLocale.ts";
+import {getSsrRequestContext} from "./utilites/ssrRequestContext.ts";
 
 export type SupportedLocales =
     "en"
@@ -48,32 +50,52 @@ export const localeToFlagEmojiMap: Record<SupportedLocales, string> = {
     fi: '🇫🇮',
 };
 
-export const localeToNameMap: Record<SupportedLocales, string> = {
-    en: `English`,
-    de: `German`,
-    fr: `French`,
-    it: `Italian`,
-    nl: `Dutch`,
-    pt: `Portuguese`,
-    es: `Spanish`,
-    "zh-cn": `Chinese`,
-    "zh-hk": `Cantonese`,
-    "pt-br": `Portuguese (Brazil)`,
-    vi: `Vietnamese`,
-    tr: `Turkish`,
-    hu: `Hungarian`,
-    pl: `Polish`,
-    se: `Swedish`,
-    sk: `Slovak`,
-    el: `Greek`,
-    ko: `Korean`,
-    ja: `Japanese`,
-    fi: `Finnish`,
+export const getLocaleName = (locale: SupportedLocales): string => {
+    switch (locale) {
+        case "en":
+            return t`English`;
+        case "de":
+            return t`German`;
+        case "fr":
+            return t`French`;
+        case "it":
+            return t`Italian`;
+        case "nl":
+            return t`Dutch`;
+        case "pt":
+            return t`Portuguese`;
+        case "es":
+            return t`Spanish`;
+        case "zh-cn":
+            return t`Chinese (Simplified)`;
+        case "zh-hk":
+            return t`Chinese (Traditional)`;
+        case "pt-br":
+            return t`Brazilian Portuguese`;
+        case "vi":
+            return t`Vietnamese`;
+        case "tr":
+            return t`Turkish`;
+        case "hu":
+            return t`Hungarian`;
+        case "pl":
+            return t`Polish`;
+        case "se":
+            return t`Swedish`;
+        case "sk":
+            return t`Slovak`;
+        case "el":
+            return t`Greek`;
+        case "ko":
+            return t`Korean`;
+        case "ja":
+            return t`Japanese`;
+        case "fi":
+            return t`Finnish`;
+        default:
+            return locale;
+    }
 };
-
-export const getLocaleName = (locale: SupportedLocales) => {
-    return localeToNameMap[locale];
-}
 
 export const getClientLocale = () => {
     if (typeof window !== "undefined") {
@@ -85,7 +107,8 @@ export const getClientLocale = () => {
         const storedLocale = document
             .cookie
             .split(";")
-            .find((c) => c.includes("locale="))
+            .map((c) => c.trim())
+            .find((c) => c.startsWith("locale="))
             ?.split("=")[1];
 
         if (storedLocale) {
@@ -95,8 +118,25 @@ export const getClientLocale = () => {
         return getSupportedLocale(window.navigator.language);
     }
 
-    return "en";
+    return getSsrRequestContext()?.locale ?? "en";
 };
+
+const intlLocaleOverrides: Partial<Record<SupportedLocales, string>> = {
+    se: "sv",
+};
+
+export const toIntlLocale = (locale: string | null | undefined): string | undefined => {
+    if (!locale) {
+        return undefined;
+    }
+
+    return intlLocaleOverrides[locale as SupportedLocales] ?? locale;
+};
+
+export const toDayjsLocale = (locale: string): string => toIntlLocale(locale) ?? locale;
+
+const localeForLanguage = (language: string): string | undefined => Object.entries(intlLocaleOverrides)
+    .find(([, intlLocale]) => intlLocale === language)?.[0];
 
 const dayjsLocaleLoaders: Partial<Record<SupportedLocales, () => Promise<unknown>>> = {
     de: () => import("dayjs/locale/de"),
@@ -111,6 +151,8 @@ const dayjsLocaleLoaders: Partial<Record<SupportedLocales, () => Promise<unknown
     "zh-hk": () => import("dayjs/locale/zh-hk"),
     tr: () => import("dayjs/locale/tr"),
     hu: () => import("dayjs/locale/hu"),
+    pl: () => import("dayjs/locale/pl"),
+    se: () => import("dayjs/locale/sv"),
     sk: () => import("dayjs/locale/sk"),
     el: () => import("dayjs/locale/el"),
     ko: () => import("dayjs/locale/ko"),
@@ -127,6 +169,9 @@ export async function dynamicActivateLocale(locale: string): Promise<string> {
         ]);
         i18n.load(locale, module.messages);
         i18n.activate(locale);
+        if (typeof document !== "undefined") {
+            document.documentElement.lang = toIntlLocale(locale) ?? locale;
+        }
     } catch (error) {
         console.error("Error loading locale:", error);
     }
@@ -141,6 +186,11 @@ export const getSupportedLocale = (userLocale: string) => {
     }
 
     const mainLanguage = normalizedLocale.split('-')[0];
+    const aliasedLocale = localeForLanguage(mainLanguage);
+    if (aliasedLocale) {
+        return aliasedLocale;
+    }
+
     const mainLocale = availableLocales.find(locale => locale.startsWith(mainLanguage));
     if (mainLocale) {
         return mainLocale;

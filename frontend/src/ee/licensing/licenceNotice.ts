@@ -1,8 +1,9 @@
 import {t} from "@lingui/macro";
 import {i18n} from "@lingui/core";
 import {LicensedFeature, LicenceSummary} from "../../types.ts";
+import {toIntlLocale} from "../../locales.ts";
 
-export type LicenceNoticeKind = 'invalid' | 'locked' | 'dev' | 'grace' | 'lapsed';
+export type LicenceNoticeKind = 'invalid' | 'locked' | 'not_included' | 'dev' | 'grace' | 'lapsed';
 
 export type LicenceTone = 'danger' | 'warning' | 'info';
 
@@ -39,8 +40,12 @@ export const licensedFeatureList = (features: LicensedFeature[]): string | null 
         return null;
     }
 
-    return new Intl.ListFormat(i18n.locale, {type: 'conjunction'}).format(names);
+    return new Intl.ListFormat(toIntlLocale(i18n.locale), {type: 'conjunction'}).format(names);
 };
+
+export const featuresNotIncluded = (licence: LicenceSummary): LicensedFeature[] => licence.features_in_use.filter(
+    feature => lockableFeatureName(feature) !== null && !licence.features?.includes(feature),
+);
 
 export const licensedFeatureLabel = (feature: string): string => {
     switch (feature) {
@@ -63,6 +68,8 @@ export const licenceStatusLabel = (kind: LicenceNoticeKind): string => {
             return t`Check key`;
         case 'locked':
             return t`Setup locked`;
+        case 'not_included':
+            return t`Not in licence`;
         case 'dev':
             return t`Development`;
         case 'grace':
@@ -81,7 +88,11 @@ export const licenceNoticeFor = (licence: LicenceSummary): LicenceNotice | null 
         return null;
     }
 
-    const hasLockableSetup = licensedFeatureList(licence.features_in_use) !== null;
+    const hasLockableSetup = licence.features_in_use.some(feature => lockableFeatureName(feature) !== null);
+
+    if (licence.status === 'ACTIVE' && featuresNotIncluded(licence).length > 0) {
+        return {kind: 'not_included', tone: 'danger'};
+    }
 
     switch (licence.status) {
         case 'GRACE':

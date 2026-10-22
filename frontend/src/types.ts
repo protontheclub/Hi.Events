@@ -76,12 +76,15 @@ export interface ColorTheme {
     homepage_secondary_text_color: string;
 }
 
+export type EventLayout = 'MARQUEE' | 'FLYER' | 'STORY' | 'INVITE';
+
 export interface HomepageThemeSettings {
     accent: string;
     background: string;
     mode: 'light' | 'dark';
     background_type: 'COLOR' | 'MIRROR_COVER_IMAGE';
     font_family?: string;
+    layout?: EventLayout;
 }
 
 export interface LoginResponse {
@@ -119,7 +122,6 @@ export interface SsoProvidersResponse {
     providers: SsoProvider[];
     password_login_enabled: boolean;
     registration_enabled: boolean;
-    buttons_visible: boolean;
     enterprise_sso_enabled: boolean;
 }
 
@@ -275,6 +277,15 @@ export interface UserIdentity {
     organization_provider: SsoProvider | null;
 }
 
+export interface LinkableSsoConnection extends SsoProvider {
+    account_name: string;
+}
+
+export interface SsoSignInMethods {
+    identities: UserIdentity[];
+    linkableConnections: LinkableSsoConnection[];
+}
+
 export interface Invitation {
     first_name: string;
     last_name: string | null;
@@ -282,6 +293,7 @@ export interface Invitation {
     timezone: string | null;
     account_name: string;
     requires_sign_in: boolean;
+    sso_required: boolean;
 }
 
 export interface TrustedDevice {
@@ -433,6 +445,8 @@ export interface LicenceSummary {
     expires_at: string | null;
     grace_ends_at: string | null;
     invalid_reason: string | null;
+    features: LicensedFeature[];
+    unlocked_features: LicensedFeature[];
     features_in_use: LicensedFeature[];
 }
 
@@ -558,6 +572,7 @@ export type HomepageSectionType =
     | 'SCHEDULE'
     | 'LOCATION'
     | 'ORGANIZER'
+    | 'MORE_EVENTS'
     | 'EVENTS'
     | 'CONTACT'
     | 'PAST_EVENTS'
@@ -1162,6 +1177,7 @@ export interface ProductPrice {
     sale_end_date?: string | Date;
     price_including_taxes_and_fees?: number;
     price_before_discount?: number;
+    price_before_discount_including_taxes_and_fees?: number | null;
     is_discounted?: boolean;
     tax_total?: number;
     fee_total?: number;

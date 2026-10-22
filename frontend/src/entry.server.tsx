@@ -7,7 +7,7 @@ import {dehydrate, QueryClient} from "@tanstack/react-query";
 import {router} from "./router";
 import {App} from "./App";
 import {createStaticHandler, createStaticRouter, StaticRouterProvider} from "react-router";
-import {dynamicActivateLocale, getSupportedLocale} from "./locales.ts";
+import {dynamicActivateLocale, getSupportedLocale, toIntlLocale} from "./locales.ts";
 import {embedLocaleForPath} from "./utilites/embedLocale.ts";
 import {SsrRequestContext, setSsrRequestContextProvider} from "./utilites/ssrRequestContext.ts";
 import {generateThemeColors} from "./utilites/themeColors.ts";
@@ -39,6 +39,7 @@ interface RenderParams {
     res: express.Response;
     backendHeaders?: Record<string, string>;
     licenceSimulation?: string;
+    stylesheetsFor?: (entries: string[]) => string[];
 }
 
 export async function render(params: RenderParams) {
@@ -62,10 +63,11 @@ export async function render(params: RenderParams) {
         licenceSimulation: params.licenceSimulation,
     };
 
-    return requestContext.run(context, () => renderWithinContext(params, queryClient));
+    return requestContext.run(context, () => renderWithinContext(params, context));
 }
 
-async function renderWithinContext(params: RenderParams, queryClient: QueryClient) {
+async function renderWithinContext(params: RenderParams, ssrContext: SsrRequestContext) {
+    const {queryClient} = ssrContext;
     await prefetchInstanceInfo(queryClient);
 
     const helmetContext = {};
@@ -79,16 +81,19 @@ async function renderWithinContext(params: RenderParams, queryClient: QueryClien
     }
 
     const locale = await dynamicActivateLocale(getLocale(params.req));
+    ssrContext.locale = locale;
 
     const routerWithContext = createStaticRouter(dataRoutes, context);
+    const stylesheets = params.stylesheetsFor?.(context.matches.flatMap(match => match.route.handle?.styles ?? [])) ?? [];
 
     i18n.activate(locale);
     const appHtml = ReactDOMServer.renderToString(
         <App
             queryClient={queryClient}
             helmetContext={helmetContext}
-            locale={getLocale(params.req)}
+            locale={locale}
             themeColors={themeColors}
+            ssrStyled={stylesheets.length > 0}
         >
             <StaticRouterProvider
                 router={routerWithContext}
@@ -104,8 +109,10 @@ async function renderWithinContext(params: RenderParams, queryClient: QueryClien
         dehydratedState,
         helmetContext,
         themeColors,
+        htmlLang: toIntlLocale(locale) ?? locale,
         statusCode: context.statusCode,
         renderErrors: Object.values(context.errors ?? {}),
+        stylesheets,
     };
 }
 

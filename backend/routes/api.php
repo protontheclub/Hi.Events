@@ -31,6 +31,7 @@ use HiEvents\Enterprise\BoxOffice\Http\Actions\UpdateBoxOfficeAction;
 use HiEvents\Enterprise\Licensing\Http\Actions\GetCompliancePublicAction;
 use HiEvents\Enterprise\Licensing\Http\Actions\GetInstanceInfoPublicAction;
 use HiEvents\Enterprise\Licensing\Http\Actions\GetLicenceAdminAction;
+use HiEvents\Enterprise\Licensing\Http\Actions\GetLicenceSalesAdminAction;
 use HiEvents\Enterprise\Seating\Http\Actions\AttachEventSeatMapAction;
 use HiEvents\Enterprise\Seating\Http\Actions\BlockSeatsAction;
 use HiEvents\Enterprise\Seating\Http\Actions\CreateSeatMapAction;
@@ -864,6 +865,7 @@ $router->prefix('/admin')->middleware(['auth:api'])->group(
 
         // Feature Flags
         $router->get('/licence', GetLicenceAdminAction::class);
+        $router->get('/licence/sales', GetLicenceSalesAdminAction::class);
         $router->get('/feature-flags', GetFeatureFlagsAction::class);
         $router->put('/feature-flags/{key}', UpdateFeatureFlagAction::class);
         $router->get('/feature-flags/{key}/overrides', GetFeatureFlagOverridesAction::class);
@@ -963,7 +965,7 @@ $router->prefix('/public')->group(
 
         // Box office
         $router->get('/box-offices/{box_office_short_id}', GetBoxOfficePublicAction::class)
-            ->middleware('throttle:60,1,box-office-read');
+            ->middleware('throttle:box-office-read');
         $router->post('/box-offices/{box_office_short_id}/sessions', CreateBoxOfficeSessionPublicAction::class)
             ->middleware('throttle:box-office-session')
             ->middleware('ee.licensed:box_office');
