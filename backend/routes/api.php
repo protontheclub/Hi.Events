@@ -71,10 +71,15 @@ use HiEvents\Http\Actions\Accounts\DeletionRequest\CancelAccountDeletionAction;
 use HiEvents\Http\Actions\Accounts\DeletionRequest\GetAccountDeletionStatusAction;
 use HiEvents\Http\Actions\Accounts\DeletionRequest\RequestAccountDeletionAction;
 use HiEvents\Http\Actions\Accounts\GetAccountAction;
+use HiEvents\Http\Actions\Accounts\Subscription\CreateSubscriptionCheckoutSessionAction;
+use HiEvents\Http\Actions\Accounts\Subscription\CreateSubscriptionPortalSessionAction;
+use HiEvents\Http\Actions\Accounts\Subscription\GetAccountSubscriptionAction;
 use HiEvents\Http\Actions\Accounts\UpdateAccountAction;
 use HiEvents\Http\Actions\Accounts\UpdateAccountTwoFactorRequirementAction;
 use HiEvents\Http\Actions\Admin\Accounts\GetAccountAction as GetAdminAccountAction;
 use HiEvents\Http\Actions\Admin\Accounts\GetAllAccountsAction as GetAllAdminAccountsAction;
+use HiEvents\Http\Actions\Admin\Accounts\SuspendAccountAction;
+use HiEvents\Http\Actions\Admin\Accounts\UnsuspendAccountAction;
 use HiEvents\Http\Actions\Admin\Accounts\UpdateAccountMessagingTierAction;
 use HiEvents\Http\Actions\Admin\Accounts\UpdateAccountVerificationAction;
 use HiEvents\Http\Actions\Admin\Announcements\CreateAnnouncementAction;
@@ -489,6 +494,9 @@ $router->middleware(['auth:api'])->group(
         $router->put('/accounts/{account_id}/sso/enforcement', UpdateSsoEnforcementAction::class)->whereNumber('account_id');
         $router->put('/accounts/{account_id}/sso/members/{account_user_id}', UpdateSsoMemberEnforcementAction::class)->whereNumber(['account_id', 'account_user_id']);
         $router->put('/accounts/{account_id?}', UpdateAccountAction::class)->whereNumber('account_id');
+        $router->get('/accounts/{account_id}/subscription', GetAccountSubscriptionAction::class)->whereNumber('account_id')->middleware('throttle:60,1,account-subscription');
+        $router->post('/accounts/{account_id}/subscription/checkout-session', CreateSubscriptionCheckoutSessionAction::class)->whereNumber('account_id')->middleware('throttle:10,1,account-subscription-checkout');
+        $router->post('/accounts/{account_id}/subscription/portal-session', CreateSubscriptionPortalSessionAction::class)->whereNumber('account_id')->middleware('throttle:20,1,account-subscription-portal');
         $router->get('/organizers/{organizer_id}/team', GetOrganizerTeamAction::class);
         $router->get('/organizers/{organizerId}/stripe/connect_accounts', GetStripeConnectAccountsAction::class);
         $router->post('/organizers/{organizerId}/stripe/connect', CreateStripeConnectAccountAction::class);
@@ -864,6 +872,10 @@ $router->prefix('/admin')->middleware(['auth:api'])->group(
 
         // Account Verification
         $router->put('/accounts/{account_id}/verification', UpdateAccountVerificationAction::class);
+
+        // Account Suspension
+        $router->post('/accounts/{account_id}/suspension', SuspendAccountAction::class)->whereNumber('account_id');
+        $router->delete('/accounts/{account_id}/suspension', UnsuspendAccountAction::class)->whereNumber('account_id');
 
         // Feature Flags
         $router->get('/licence', GetLicenceAdminAction::class);

@@ -466,6 +466,33 @@ export interface Account {
     deletion_request?: AccountDeletionRequest | null;
 }
 
+export type AccountSubscriptionStatus =
+    'INCOMPLETE'
+    | 'INCOMPLETE_EXPIRED'
+    | 'TRIALING'
+    | 'ACTIVE'
+    | 'PAST_DUE'
+    | 'CANCELED'
+    | 'UNPAID'
+    | 'PAUSED';
+
+export type SubscriptionBillingInterval = 'month' | 'year';
+
+export interface SubscriptionPrice {
+    interval: SubscriptionBillingInterval;
+    unit_amount: number;
+    currency: string;
+}
+
+export interface AccountSubscription {
+    available: boolean;
+    active: boolean;
+    status: AccountSubscriptionStatus | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+    prices: SubscriptionPrice[];
+}
+
 export interface AccountDeletionRequest {
     id: IdParam;
     status: 'REQUESTED' | 'CANCELLED' | 'COMPLETED';
@@ -760,6 +787,7 @@ export interface EventDuplicatePayload extends EventBase {
     duplicate_affiliates: boolean;
     duplicate_lineup: boolean;
     duplicate_occurrences?: boolean;
+    duplicate_email_templates?: boolean;
 }
 
 export enum EventStatus {
@@ -1068,6 +1096,7 @@ export interface Organizer {
     location_id?: IdParam | null;
     location?: Location | null;
     status?: OrganizerStatus;
+    branding_removed?: boolean;
     stripe_connect_setup_complete?: boolean;
     stripe_account_id?: string | null;
     configuration?: AccountConfiguration;
@@ -2110,6 +2139,7 @@ export interface JoinWaitlistRequest {
     first_name: string;
     last_name?: string;
     locale?: string;
+    promo_code?: string;
 }
 
 export interface WaitlistProductStats {
