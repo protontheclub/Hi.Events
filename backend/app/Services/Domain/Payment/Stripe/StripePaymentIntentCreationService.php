@@ -131,6 +131,25 @@ class StripePaymentIntentCreationService
                 )
                 : null;
 
+            // NEU: Steuerung über die .env-Variable STRIPE_USE_DESTINATION_CHARGES
+            $useDestinationCharges = (bool) $this->config->get('services.stripe.use_destination_charges', false);
+
+            $accountData = $this->getStripeAccountData($paymentIntentDTO);
+
+            if ($useDestinationCharges) {
+                // MODUS A (Destination Charges): Zahlungsfluss läuft über die Hauptplattform.
+                // Das Geld wird per transfer_data automatisch an das Express-Konto weitergeleitet.
+                // Erlaubt die Freischaltung von PayPal auf Plattform-Ebene!
+                $transferData = isset($accountData['stripe_account'])
+                    ? ['transfer_data' => ['destination' => $accountData['stripe_account']]]
+                    : [];
+                $requestOptions = []; // Kein 'stripe_account'-Header im API-Request
+            } else {
+                // MODUS B (Direct Charges): Standard Hi.Events-Verhalten (Intent läuft direkt auf dem Express-Konto)
+                $transferData = [];
+                $requestOptions = $accountData;
+            }
+
             $paymentIntent = $stripeClient->paymentIntents->create([
                 'amount' => $paymentIntentDTO->amount->toMinorUnit(),
                 'currency' => $paymentIntentDTO->currencyCode,
@@ -139,11 +158,13 @@ class StripePaymentIntentCreationService
                 ...$paymentMethodParams,
                 ...($paymentIntentDTO->description ? ['description' => $paymentIntentDTO->description] : []),
                 ...($applicationFee && ! $bypassApplicationFees ? ['application_fee_amount' => $applicationFee->grossApplicationFee->toMinorUnit()] : []),
-            ], $this->getStripeAccountData($paymentIntentDTO));
+                ...$transferData, // Wird nur befüllt, wenn useDestinationCharges auf true steht
+            ], $requestOptions); // Enthält den stripe_account-Header nur, wenn useDestinationCharges false ist
 
             $this->logger->debug('Stripe payment intent created', [
                 'paymentIntentId' => $paymentIntent->id,
                 'paymentIntentDTO' => $paymentIntentDTO->toArray(['account']),
+                'useDestinationCharges' => $useDestinationCharges,
             ]);
 
             $this->databaseManager->commit();
