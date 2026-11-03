@@ -51,6 +51,9 @@ return [
 
         // Primary platform for new organizers
         'primary_platform' => env('STRIPE_PRIMARY_PLATFORM'),
+
+        // Destination charges
+        'use_destination_charges' => env('STRIPE_USE_DESTINATION_CHARGES', false),
     ],
     'turnstile' => [
         'secret_key' => env('TURNSTILE_SECRET_KEY'),
