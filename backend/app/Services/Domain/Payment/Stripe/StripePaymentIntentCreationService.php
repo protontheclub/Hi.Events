@@ -132,22 +132,18 @@ class StripePaymentIntentCreationService
                 : null;
 
             // NEU: Steuerung über die .env-Variable STRIPE_USE_DESTINATION_CHARGES
-            $useDestinationCharges = (bool) $this->config->get('services.stripe.use_destination_charges', false);
+            // NEU: Direkt die Konto-ID aus dem DTO für Destination Charges nutzen
+            $useDestinationCharges = true; // Oder wieder über die .env gesteuert
+            $accountId = $paymentIntentDTO->stripeAccountId;
 
-            $accountData = $this->getStripeAccountData($paymentIntentDTO);
-
-            if ($useDestinationCharges) {
-                // MODUS A (Destination Charges): Zahlungsfluss läuft über die Hauptplattform.
-                // Das Geld wird per transfer_data automatisch an das Express-Konto weitergeleitet.
-                // Erlaubt die Freischaltung von PayPal auf Plattform-Ebene!
-                $transferData = isset($accountData['stripe_account'])
-                    ? ['transfer_data' => ['destination' => $accountData['stripe_account']]]
-                    : [];
-                $requestOptions = []; // Kein 'stripe_account'-Header im API-Request
+            if ($useDestinationCharges && $accountId) {
+                // MODUS A (Destination Charges): Intent läuft auf Plattform, Geld wird an das Express-Konto weitergeleitet
+                $transferData = ['transfer_data' => ['destination' => $accountId]];
+                $requestOptions = []; // Keine opts, damit kein Direct Charge erzwungen wird
             } else {
-                // MODUS B (Direct Charges): Standard Hi.Events-Verhalten (Intent läuft direkt auf dem Express-Konto)
+                // MODUS B (Direct Charges): Fallback
                 $transferData = [];
-                $requestOptions = $accountData;
+                $requestOptions = $this->getStripeAccountData($paymentIntentDTO);
             }
 
             $paymentIntent = $stripeClient->paymentIntents->create([
